@@ -36,6 +36,8 @@ my $d_v = 0.0;
 my $d_i = 0.0;
 my $off_after = 0;
 
+STDOUT->autoflush( 1 );
+
 
 my %option = ();
 if( ! getopts( "hdOv:i:m:n:t:u:V:I:", \%option ) ) {
@@ -47,7 +49,7 @@ if( $option{"h"} ) {
 };
 if( $option{"d"} ) {
   $debug++;
-  printf("Debug: debug level is now %d\n", $debug );
+  print STDERR sprintf("Debug: debug level is now %d\n", $debug );
 };
 if( $option{"m"} ) {
   $tty = $option{"m"};
@@ -58,7 +60,7 @@ if( $option{"m"} ) {
 if( $option{"v"} ) {
   $v_set = $option{"v"};
   if( $debug > 0 ) {
-    printf("Debug: set voltage to  %f\n", $v_set );
+    print STDERR sprintf("Debug: set voltage to  %f\n", $v_set );
   }
   if( $v_set < 0 || $v_set > $v_max ) {
       die( "Bad set voltage: " . $v_set );
@@ -67,7 +69,7 @@ if( $option{"v"} ) {
 if( $option{"i"} ) {
   $i_set = $option{"i"};
   if( $debug > 0 ) {
-    printf("Debug: set current to  %f\n", $i_set );
+    print STDERR sprintf("Debug: set current to  %f\n", $i_set );
   }
   if( $i_set < 0 || $i_set > $i_max ) {
       die( "Bad set current " . $i_set );
@@ -76,31 +78,31 @@ if( $option{"i"} ) {
 if( $option{"n"} ) {
   $n_read = $option{"n"};
   if( $debug > 0 ) {
-    printf("Debug: n_read: %d\n", $n_read );
+    print STDERR sprintf("Debug: n_read: %d\n", $n_read );
   }
 };
 if( $option{"t"} ) {
   $t_read = $option{"t"};
   if( $debug > 0 ) {
-    printf("Debug: t_read %d\n", $t_read );
+    print STDERR sprintf("Debug: t_read %d\n", $t_read );
   }
 };
 if( $option{"V"} ) {
   $d_v = $option{"V"};
   if( $debug > 0 ) {
-    printf("Debug: d_v = %f\n", $d_v );
+    print STDERR sprintf("Debug: d_v = %f\n", $d_v );
   }
 };
 if( $option{"I"} ) {
   $d_i = $option{"I"};
   if( $debug > 0 ) {
-    printf("Debug: d_i = %f\n", $d_i );
+    print STDERR sprintf("Debug: d_i = %f\n", $d_i );
   }
 };
 if( $option{"O"} ) {
   $off_after = 1;
   if( $debug > 0 ) {
-    printf("Debug: off_after = %d\n", $off_after );
+    print STDERR sprintf("Debug: off_after = %d\n", $off_after );
   }
 };
 
@@ -111,26 +113,33 @@ my $client = Device::Modbus::RTU::Client->new(
   parity   => 'none',
 );
 
+printf( "# v_out i_out v_set_r i_set_r w_out is_on err_x \n" );
+
 for( my $it = 0; $it < $n_read; ++$it ) {
 
   my $v_cur = $v_set + $d_v * $it;
   my $i_cur = $i_set + $d_i * $it;
 
   if( $debug > 0 ) {
-    printf( "# %d %f %f\n" , $it, $v_cur, $i_cur );
+    print STDERR sprintf( "# %d %f %f\n" , $it, $v_cur, $i_cur );
   }
 
+  # set V
   if( $v_set >=0 && $v_cur >=0 && $v_cur < $v_max ) {
     my $req_v = $client->write_single_register( unit => 1, address  => 8, value => int( $v_cur * 100 ) );
     $client->send_request( $req_v ) || die "Send error (set_v): $!";
-    my $resp_v = $client->receive_response;
     usleep( 100000 );
+    my $resp_v = $client->receive_response;
   }
 
+  # set I if req
   if( $i_set >=0 && $i_cur >=0 && $i_cur < $i_max ) {
-    my $req_i = $client->write_single_register( unit => 1, address  => 9, value => int( $i_cur * 1000 ) );
-    $client->send_request( $req_i ) || die "Send error (set_i): $!";
-    my $resp_i = $client->receive_response;
+    if( $it == 0 || $d_i > 1e-6 ) {
+      my $req_i = $client->write_single_register( unit => 1, address  => 9, value => int( $i_cur * 1000 ) );
+      $client->send_request( $req_i ) || die "Send error (set_i): $!";
+      usleep( 100000 );
+      my $resp_i = $client->receive_response;
+    }
   }
 
   usleep( $t_read * 1e6 );
