@@ -157,8 +157,13 @@ for( my $it = 0; $it < $n_read; ++$it ) {
   my $err_x   = @$v[16];
   my $is_on   = @$v[18] ? 1 : 0;
 
-  printf( "%5.2f   %5.3f %5.2f   %5.3f %6.2f   %1d    %2d\n",
+  my $s = sprintf( "%5.2f   %5.3f %5.2f   %5.3f %6.2f   %1d    %2d\n",
           $v_out, $i_out, $v_set_r, $i_set_r, $w_out, $is_on, $err_x );
+
+  print( $s );
+  if( $debug > 0 ) {
+    print( STDERR $s );
+  }
 
   $v_cur += $d_v;
   $i_cur += $d_i;
