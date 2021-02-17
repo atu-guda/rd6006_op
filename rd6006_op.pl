@@ -3,7 +3,7 @@
 #
 #         FILE: rd6006_op.pl
 #
-#        USAGE: rd6006_op.pl  [-h] [-d] [-m /dev/device] [-u unit] [-O=off] [-v v_set] [ -i i_set ] [-V d_v] [-I d_i] [-n n_read] [-t t_read]
+#        USAGE: rd6006_op.pl  [-h] [-d] [-m /dev/device] [-u unit] [-O=off] [-P=on_before] [-v v_set] [ -i i_set ] [-V d_v] [-I d_i] [-n n_read] [-t t_read]
 #
 #  DESCRIPTION: simple RD6006 interactions via modbus
 #
@@ -36,17 +36,18 @@ my $t_read = 1.0;
 my $d_v = 0.0;
 my $d_i = 0.0;
 my $off_after = 0;
+my $on_before = 0;
 
 STDOUT->autoflush( 1 );
 
 
 my %option = ();
-if( ! getopts( "hdOv:i:m:n:t:u:V:I:", \%option ) ) {
+if( ! getopts( "hdOPv:i:m:n:t:u:V:I:", \%option ) ) {
   die( "Option error. Try use -h.\n" );
 };
 
 if( $option{"h"} ) {
-  print( STDERR "Usage: rd6006_op [-h] [-d] [-m /dev/device] [-u unit] [-v v_set] [ -i i_set ] [-V d_v] [-I d_i] [-n n_read] [-t t_read]\n");
+  print( STDERR "Usage: rd6006_op [-h] [-d] [-m /dev/device] [-u unit] [-O] [-P] [-v v_set] [ -i i_set ] [-V d_v] [-I d_i] [-n n_read] [-t t_read]\n");
   exit(0);
 };
 
@@ -125,12 +126,27 @@ if( $option{"O"} ) {
   }
 };
 
+if( $option{"P"} ) {
+  $on_before = 1;
+  if( $debug > 0 ) {
+    print STDERR sprintf("Debug: on_before = %d\n", $on_before );
+  }
+};
+
+
 
 my $client = Device::Modbus::RTU::Client->new(
   port     => $tty,
   baudrate => 115200,
   parity   => 'none',
 );
+
+if( $on_before ) {
+  # TODO: set v if set
+  my $req_off = $client->write_single_register( unit => $unit, address  => 18, value => 1 );
+  $client->send_request( $req_off ) || die "Send error (on): $!";
+  my $resp_off = $client->receive_response;
+}
 
 printf( "# v_out i_out v_set_r i_set_r w_out is_on err_x \n" );
 
@@ -198,7 +214,7 @@ for( my $it = 0; $it < $n_read; ++$it ) {
 }
 
 if( $off_after ) {
-  my $req_off = $client->write_single_register( unit => 1, address  => 18, value => 0 );
+  my $req_off = $client->write_single_register( unit => $unit, address  => 18, value => 0 );
   $client->send_request( $req_off ) || die "Send error (off): $!";
   my $resp_off = $client->receive_response;
 }

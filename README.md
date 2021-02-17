@@ -10,6 +10,7 @@
     [-m /dev/device] -- device file, default =  /dev/ttyUSB0;
     [-u unit] -- modbus device unit, default=1;
     [-O=off] -- off power after mesurement;
+    [-P=on] -- on power before mesurement;
     [-v v_set] -- initial voltage set;
     [ -i i_set ] -- initial current set;
     [-V d_v] -- voltage delta on every iteration;
