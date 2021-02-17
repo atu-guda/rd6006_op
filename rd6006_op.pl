@@ -14,8 +14,7 @@
 #      LICENSE: GPLv3
 #===============================================================================
 
-use Getopt::Std;
-use Getopt::Long;
+use Getopt::Long qw(:config no_ignore_case ); # auto_help
 use Device::Modbus::RTU::Client;
 use Time::HiRes qw( usleep );
 
@@ -32,6 +31,7 @@ my $v_max = 60.0;
 my $i_max = 6.0;
 my $sleep_cmd_resp = 50000; # sleep time in ms between cmd and responce
 
+my $help_need = 0;
 my $tty = '/dev/ttyUSB0';
 my $unit = 1;
 my $debug = 0;
@@ -41,103 +41,44 @@ my $n_read = 1;
 my $t_read = 1.0;
 my $d_v = 0.0;
 my $d_i = 0.0;
+my $reverse_at = -1;
 my $off_after = 0;
 my $on_before = 0;
 
 STDOUT->autoflush( 1 );
 
+my %opts = (
+    #  'h|help'   => \$help_need,
+  'd|debug+' => \$debug,
+  'u|unit=o' => \$unit,
+  'm|tty=s' => \$tty,
+  'n|n_read=o' => \$n_read,
+  't|t_read=f' => \$t_read,
+  'v|v_set=f' => \$v_set,
+  'i|i_set=f' => \$i_set,
+  'V|d_v=f' => \$d_v,
+  'I|d_i=f' => \$d_i,
+  'r|reverse_at=i' => \$reverse_at,
+  'P|on_before' => \$on_before,
+  'O|off_after' => \$off_after
+);
 
-my %option = ();
-if( ! getopts( "hdOPv:i:m:n:t:u:V:I:", \%option ) ) {
-  die( "Option error. Try use -h.\n" );
-};
+my $opt_rc = GetOptions ( %opts );
 
-if( $option{"h"} ) {
-  print( STDERR "Usage: rd6006_op [-h] [-d] [-m /dev/device] [-u unit] [-O] [-P] [-v v_set] [ -i i_set ] [-V d_v] [-I d_i] [-n n_read] [-t t_read]\n");
+if( $help_need || !$opt_rc ) {
+  print( STDERR "Usage: rd6006_op [options]\n Options:\n\n");
+  while( my ($key,$val) = each( %opts )  ) {
+    print( STDERR " -" . $key . "\n" );
+  }
   exit(0);
 };
 
-if( $option{"d"} ) {
-  $debug++;
-  print STDERR sprintf("Debug: debug level is now %d\n", $debug );
-};
+if( $debug > 0 ) {
+  while( my ($key,$val) = each( %opts )  ) {
+    print( STDERR "# $key = " . $$val . "\n" );
+  }
+}
 
-if( $option{"m"} ) {
-  $tty = $option{"m"};
-  if( $debug > 0 ) {
-    print STDERR sprintf("Debug: device is <%s>\n", $tty );
-  }
-};
-
-if( $option{"u"} ) {
-  $unit = $option{"u"};
-  if( $debug > 0 ) {
-    print STDERR sprintf("Debug: unit is <%d>\n", $unit );
-  }
-};
-
-
-if( $option{"v"} ) {
-  $v_set = $option{"v"};
-  if( $debug > 0 ) {
-    print STDERR sprintf("Debug: set voltage to  %f\n", $v_set );
-  }
-  if( $v_set < 0 || $v_set > $v_max ) {
-    die( "Bad set voltage: " . $v_set );
-  }
-};
-
-if( $option{"i"} ) {
-  $i_set = $option{"i"};
-  if( $debug > 0 ) {
-    print STDERR sprintf("Debug: set current to  %f\n", $i_set );
-  }
-  if( $i_set < 0 || $i_set > $i_max ) {
-    die( "Bad set current " . $i_set );
-  }
-};
-
-if( $option{"n"} ) {
-  $n_read = $option{"n"};
-  if( $debug > 0 ) {
-    print STDERR sprintf("Debug: n_read: %d\n", $n_read );
-  }
-};
-
-if( $option{"t"} ) {
-  $t_read = $option{"t"};
-  if( $debug > 0 ) {
-    print STDERR sprintf("Debug: t_read %d\n", $t_read );
-  }
-};
-
-if( $option{"V"} ) {
-  $d_v = $option{"V"};
-  if( $debug > 0 ) {
-    print STDERR sprintf("Debug: d_v = %f\n", $d_v );
-  }
-};
-
-if( $option{"I"} ) {
-  $d_i = $option{"I"};
-  if( $debug > 0 ) {
-    print STDERR sprintf("Debug: d_i = %f\n", $d_i );
-  }
-};
-
-if( $option{"O"} ) {
-  $off_after = 1;
-  if( $debug > 0 ) {
-    print STDERR sprintf("Debug: off_after = %d\n", $off_after );
-  }
-};
-
-if( $option{"P"} ) {
-  $on_before = 1;
-  if( $debug > 0 ) {
-    print STDERR sprintf("Debug: on_before = %d\n", $on_before );
-  }
-};
 
 
 
@@ -157,10 +98,15 @@ if( $on_before ) {
 
 printf( "# v_out i_out v_set_r i_set_r w_out is_on err_x \n" );
 
+my $v_cur = $v_set;
+my $i_cur = $i_set;
+
 for( my $it = 0; $it < $n_read; ++$it ) {
 
-  my $v_cur = $v_set + $d_v * $it;
-  my $i_cur = $i_set + $d_i * $it;
+  if( $it == $reverse_at ) {
+    $d_v = -$d_v;
+    $d_i = -$d_i;
+  }
 
   if( $debug > 0 ) {
     print STDERR sprintf( "# %d %f %f\n" , $it, $v_cur, $i_cur );
@@ -173,7 +119,7 @@ for( my $it = 0; $it < $n_read; ++$it ) {
 
   # set I if req
   if( $i_set >=0 && $i_cur >=0 && $i_cur < $i_max ) {
-    if( $it == 0 || $d_i > 1e-6 ) {
+    if( $it == 0 || abs($d_i) > 1e-6 ) {
       MB_set_I( $i_cur );
     }
   }
@@ -213,6 +159,9 @@ for( my $it = 0; $it < $n_read; ++$it ) {
 
   printf( "%5.2f   %5.3f %5.2f   %5.3f %6.2f   %1d    %2d\n",
           $v_out, $i_out, $v_set_r, $i_set_r, $w_out, $is_on, $err_x );
+
+  $v_cur += $d_v;
+  $i_cur += $d_i;
 }
 
 if( $off_after ) {
