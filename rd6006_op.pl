@@ -15,16 +15,22 @@
 #===============================================================================
 
 use Getopt::Std;
+use Getopt::Long;
 use Device::Modbus::RTU::Client;
 use Time::HiRes qw( usleep );
-use Data::Dumper;
+
+# use Data::Dumper;
 
 use strict;
 use warnings;
 use utf8;
 
+sub MB_wr1; # (addr, val, "action" )
+sub MB_set_v; # ( V_volt )
+
 my $v_max = 60.0;
 my $i_max = 6.0;
+my $sleep_cmd_resp = 50000; # sleep time in ms between cmd and responce
 
 my $tty = '/dev/ttyUSB0';
 my $unit = 1;
@@ -143,9 +149,10 @@ my $client = Device::Modbus::RTU::Client->new(
 
 if( $on_before ) {
   # TODO: set v if set
-  my $req_off = $client->write_single_register( unit => $unit, address  => 18, value => 1 );
-  $client->send_request( $req_off ) || die "Send error (on): $!";
-  my $resp_off = $client->receive_response;
+  if( $v_set > 0 ) {
+    MB_set_v( $v_set );
+  }
+  MB_wr1( 18, 1, "On" );
 }
 
 printf( "# v_out i_out v_set_r i_set_r w_out is_on err_x \n" );
@@ -161,19 +168,13 @@ for( my $it = 0; $it < $n_read; ++$it ) {
 
   # set V
   if( $v_set >=0 && $v_cur >=0 && $v_cur < $v_max ) {
-    my $req_v = $client->write_single_register( unit => $unit, address  => 8, value => int( $v_cur * 100 ) );
-    $client->send_request( $req_v ) || die "Send error (set_v): $!";
-    usleep( 100000 );
-    my $resp_v = $client->receive_response;
+    MB_set_v( $v_cur );
   }
 
   # set I if req
   if( $i_set >=0 && $i_cur >=0 && $i_cur < $i_max ) {
     if( $it == 0 || $d_i > 1e-6 ) {
-      my $req_i = $client->write_single_register( unit => $unit, address  => 9, value => int( $i_cur * 1000 ) );
-      $client->send_request( $req_i ) || die "Send error (set_i): $!";
-      usleep( 100000 );
-      my $resp_i = $client->receive_response;
+      MB_set_I( $i_cur );
     }
   }
 
@@ -210,12 +211,39 @@ for( my $it = 0; $it < $n_read; ++$it ) {
   my $err_x   = @$v[16];
   my $is_on   = @$v[18] ? 1 : 0;
 
-  printf( "%5.2f   %5.3f %5.2f   %5.3f %6.2f   %1d    %2d\n", $v_out, $i_out, $v_set_r, $i_set_r, $w_out, $is_on, $err_x );
+  printf( "%5.2f   %5.3f %5.2f   %5.3f %6.2f   %1d    %2d\n",
+          $v_out, $i_out, $v_set_r, $i_set_r, $w_out, $is_on, $err_x );
 }
 
 if( $off_after ) {
-  my $req_off = $client->write_single_register( unit => $unit, address  => 18, value => 0 );
-  $client->send_request( $req_off ) || die "Send error (off): $!";
-  my $resp_off = $client->receive_response;
+  MB_wr1( 18, 0, "Off" );
+}
+
+# --------------------------------------------------------------------------------------
+
+
+sub MB_wr1 # (addr, val, "action" )
+{
+  my $addr = $_[0];
+  my $val  = $_[1];
+  my $act_str  = $_[2];
+  my $req = $client->write_single_register( unit => $unit, address  => $addr, value => $val );
+  $client->send_request( $req ) || die "Send error: $act_str: addr: $addr rc= $!";
+  usleep( $sleep_cmd_resp );
+  my $resp = $client->receive_response;
+  if( ! $resp->success ) {
+    die( "Fail to receive response on $act_str" );
+  }
+  return $resp;
+}
+
+sub MB_set_v # ( V_volt )
+{
+  return MB_wr1( 8, $_[0] * 100, "V_set" );
+}
+
+sub MB_set_I # ( I_A )
+{
+  return MB_wr1( 9, $_[0] * 1000, "I_set" );
 }
 
