@@ -27,6 +27,7 @@ my $v_max = 60.0;
 my $i_max = 6.0;
 
 my $tty = '/dev/ttyUSB0';
+my $unit = 1;
 my $debug = 0;
 my $v_set = -1.0; # flag : no set
 my $i_set = -1.0;
@@ -43,62 +44,80 @@ my %option = ();
 if( ! getopts( "hdOv:i:m:n:t:u:V:I:", \%option ) ) {
   die( "Option error. Try use -h.\n" );
 };
+
 if( $option{"h"} ) {
-  print("Usage: rd6006_op [-h] [-d] [-m /dev/device] [-u unit] [-v v_set] [ -i i_set ] [-V d_v] [-I d_i] [-n n_read] [-t t_read]\n");
+  print( STDERR "Usage: rd6006_op [-h] [-d] [-m /dev/device] [-u unit] [-v v_set] [ -i i_set ] [-V d_v] [-I d_i] [-n n_read] [-t t_read]\n");
   exit(0);
 };
+
 if( $option{"d"} ) {
   $debug++;
   print STDERR sprintf("Debug: debug level is now %d\n", $debug );
 };
+
 if( $option{"m"} ) {
   $tty = $option{"m"};
   if( $debug > 0 ) {
-    printf("Debug: device is <%s>\n", $tty );
+    print STDERR sprintf("Debug: device is <%s>\n", $tty );
   }
 };
+
+if( $option{"u"} ) {
+  $unit = $option{"u"};
+  if( $debug > 0 ) {
+    print STDERR sprintf("Debug: unit is <%d>\n", $unit );
+  }
+};
+
+
 if( $option{"v"} ) {
   $v_set = $option{"v"};
   if( $debug > 0 ) {
     print STDERR sprintf("Debug: set voltage to  %f\n", $v_set );
   }
   if( $v_set < 0 || $v_set > $v_max ) {
-      die( "Bad set voltage: " . $v_set );
+    die( "Bad set voltage: " . $v_set );
   }
 };
+
 if( $option{"i"} ) {
   $i_set = $option{"i"};
   if( $debug > 0 ) {
     print STDERR sprintf("Debug: set current to  %f\n", $i_set );
   }
   if( $i_set < 0 || $i_set > $i_max ) {
-      die( "Bad set current " . $i_set );
+    die( "Bad set current " . $i_set );
   }
 };
+
 if( $option{"n"} ) {
   $n_read = $option{"n"};
   if( $debug > 0 ) {
     print STDERR sprintf("Debug: n_read: %d\n", $n_read );
   }
 };
+
 if( $option{"t"} ) {
   $t_read = $option{"t"};
   if( $debug > 0 ) {
     print STDERR sprintf("Debug: t_read %d\n", $t_read );
   }
 };
+
 if( $option{"V"} ) {
   $d_v = $option{"V"};
   if( $debug > 0 ) {
     print STDERR sprintf("Debug: d_v = %f\n", $d_v );
   }
 };
+
 if( $option{"I"} ) {
   $d_i = $option{"I"};
   if( $debug > 0 ) {
     print STDERR sprintf("Debug: d_i = %f\n", $d_i );
   }
 };
+
 if( $option{"O"} ) {
   $off_after = 1;
   if( $debug > 0 ) {
@@ -126,7 +145,7 @@ for( my $it = 0; $it < $n_read; ++$it ) {
 
   # set V
   if( $v_set >=0 && $v_cur >=0 && $v_cur < $v_max ) {
-    my $req_v = $client->write_single_register( unit => 1, address  => 8, value => int( $v_cur * 100 ) );
+    my $req_v = $client->write_single_register( unit => $unit, address  => 8, value => int( $v_cur * 100 ) );
     $client->send_request( $req_v ) || die "Send error (set_v): $!";
     usleep( 100000 );
     my $resp_v = $client->receive_response;
@@ -135,7 +154,7 @@ for( my $it = 0; $it < $n_read; ++$it ) {
   # set I if req
   if( $i_set >=0 && $i_cur >=0 && $i_cur < $i_max ) {
     if( $it == 0 || $d_i > 1e-6 ) {
-      my $req_i = $client->write_single_register( unit => 1, address  => 9, value => int( $i_cur * 1000 ) );
+      my $req_i = $client->write_single_register( unit => $unit, address  => 9, value => int( $i_cur * 1000 ) );
       $client->send_request( $req_i ) || die "Send error (set_i): $!";
       usleep( 100000 );
       my $resp_i = $client->receive_response;
@@ -144,11 +163,7 @@ for( my $it = 0; $it < $n_read; ++$it ) {
 
   usleep( $t_read * 1e6 );
 
-  my $req = $client->read_holding_registers(
-    unit     => 1,
-    address  => 0,
-    quantity => 20,
-  );
+  my $req = $client->read_holding_registers( unit => $unit, address  => 0, quantity => 20 );
 
   $client->send_request( $req ) || die "Send error (read): $!";
 
@@ -179,7 +194,7 @@ for( my $it = 0; $it < $n_read; ++$it ) {
   my $err_x   = @$v[16];
   my $is_on   = @$v[18] ? 1 : 0;
 
-  printf( "%5.2f %5.3f %5.2f %5.3f %6.2f %1d %2d\n", $v_out, $i_out, $v_set_r, $i_set_r, $w_out, $is_on, $err_x );
+  printf( "%5.2f   %5.3f %5.2f   %5.3f %6.2f   %1d    %2d\n", $v_out, $i_out, $v_set_r, $i_set_r, $w_out, $is_on, $err_x );
 }
 
 if( $off_after ) {

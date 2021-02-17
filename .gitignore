@@ -17,3 +17,8 @@ nytprof.out
 *.o
 *.bs
 *.txt
+*.dat
+*.swp
+*.out
+*.csv
+*.png
