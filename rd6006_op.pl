@@ -7,7 +7,7 @@
 #
 #  DESCRIPTION: simple RD6006 interactions via modbus
 #
-# REQUIREMENTS: --- Device::Modbus::RTU::Client, Getopt::Std, Time:HiRes
+# REQUIREMENTS: --- Device::Modbus::RTU::Client, Getopt::Long, Time:HiRes
 #       AUTHOR: atu
 #      VERSION: 1.0
 #      CREATED: 03/14/20 23:46:23
@@ -49,18 +49,18 @@ STDOUT->autoflush( 1 );
 
 my %opts = (
     #  'h|help'   => \$help_need,
-  'd|debug+' => \$debug,
-  'u|unit=o' => \$unit,
-  'm|tty=s' => \$tty,
-  'n|n_read=o' => \$n_read,
-  't|t_read=f' => \$t_read,
-  'v|v_set=f' => \$v_set,
-  'i|i_set=f' => \$i_set,
-  'V|d_v=f' => \$d_v,
-  'I|d_i=f' => \$d_i,
+  'd|debug+'       => \$debug,
+  'u|unit=o'       => \$unit,
+  'm|tty=s'        => \$tty,
+  'n|n_read=o'     => \$n_read,
+  't|t_read=f'     => \$t_read,
+  'v|v_set=f'      => \$v_set,
+  'i|i_set=f'      => \$i_set,
+  'V|d_v=f'        => \$d_v,
+  'I|d_i=f'        => \$d_i,
   'r|reverse_at=i' => \$reverse_at,
-  'P|on_before' => \$on_before,
-  'O|off_after' => \$off_after
+  'P|on_before'    => \$on_before,
+  'O|off_after'    => \$off_after
 );
 
 my $opt_rc = GetOptions ( %opts );
@@ -132,18 +132,12 @@ for( my $it = 0; $it < $n_read; ++$it ) {
 
   my $resp = $client->receive_response;
 
-  # if( $debug > 1 ) {
-  #   print( Dumper ( $resp ) );
-  # }
 
   if( ! $resp->success ) {
     die( "Fail to receive response" );
   }
 
   my $v= $resp->values;
-  # if( $debug > 0 ) {
-  #   print( Dumper ( $v ) );
-  # }
 
   if( @$v[0] != 60062 ) {
     die( "Bad device ID: " . @$v[0] );
