@@ -24,6 +24,8 @@ use strict;
 use warnings;
 use utf8;
 
+sub at_end;
+
 my $v_max = 60.0;
 my $i_max = 6.0;
 my $sleep_cmd_resp = 50000; # sleep time in us between cmd and responce
@@ -76,6 +78,9 @@ if( $debug > 0 ) {
   }
 }
 
+$SIG{INT}  = sub { at_end(); die("SIGINT");  };
+$SIG{TERM} = sub { at_end(); die("SIGTERM"); };
+
 my $pwr1 = Device::RD6006->new( $tty, $unit );
 
 print( STDERR "v_scale= ", $pwr1->{v_scale}, "\n" );
@@ -126,14 +131,6 @@ for( my $it = 0; $it < $n_read; ++$it ) {
   if( ! $pwr1->readMainRegs() ) {
     die( "Fail to read registers" );
   }
-  #
-  # my $v_set_r = 0.010 * @$v[8];
-  # my $i_set_r = 0.001 * @$v[9];
-  # my $v_out   = 0.010 * @$v[10];
-  # my $i_out   = 0.001 * @$v[11];
-  # my $w_out   = 0.010 * @$v[13];
-  # my $err_x   = @$v[16];
-  # my $is_on   = @$v[18] ? 1 : 0;
 
   my $s = sprintf( "%5.2f   %5.3f %5.2f   %5.3f %6.2f   %1d    %2d\n",
           $pwr1->get_V(), $pwr1->get_I(), $pwr1->get_V_set(), $pwr1->get_I_set(),
@@ -150,6 +147,15 @@ for( my $it = 0; $it < $n_read; ++$it ) {
 
 if( $off_after ) {
   $pwr1->Off();
+}
+
+# --------------------------------------------------------------------------------------
+
+sub at_end
+{
+  if( $off_after ) {
+    $pwr1->Off();
+  }
 }
 
 # --------------------------------------------------------------------------------------
